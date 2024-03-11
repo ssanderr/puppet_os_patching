@@ -28,6 +28,9 @@
 # @param fact_upload [Boolean]
 #   Should `puppet fact upload` be run after any changes to the fact cache files?
 #
+# @param fact_cron [Boolean]
+#   Feature flag to toggle cron jobs to refresh facts
+#
 # @param apt_autoremove [Boolean]
 #   Should `apt-get autoremove` be run during reboot?
 #
@@ -149,6 +152,7 @@ class os_patching (
   Boolean $manage_delta_rpm,
   Boolean $manage_yum_plugin_security,
   Boolean $fact_upload,
+  Boolean $fact_cron,
   Boolean $block_patching_on_warnings,
   Boolean $apt_autoremove,
   Integer[0,23] $windows_update_hour,
@@ -366,24 +370,26 @@ class os_patching (
         }
       }
 
-      cron { 'Cache patching data':
-        ensure   => $ensure,
-        command  => $fact_cmd,
-        user     => $patch_cron_user,
-        hour     => $patch_cron_hour,
-        minute   => $patch_cron_min,
-        month    => $patch_cron_month,
-        monthday => $patch_cron_monthday,
-        weekday  => $patch_cron_weekday,
-        require  => File[$fact_cmd],
-      }
+      if $fact_cron {
+        cron { 'Cache patching data':
+          ensure   => $ensure,
+          command  => $fact_cmd,
+          user     => $patch_cron_user,
+          hour     => $patch_cron_hour,
+          minute   => $patch_cron_min,
+          month    => $patch_cron_month,
+          monthday => $patch_cron_monthday,
+          weekday  => $patch_cron_weekday,
+          require  => File[$fact_cmd],
+        }
 
-      cron { 'Cache patching data at reboot':
-        ensure  => $ensure,
-        command => $fact_cmd,
-        user    => $patch_cron_user,
-        special => 'reboot',
-        require => File[$fact_cmd],
+        cron { 'Cache patching data at reboot':
+          ensure  => $ensure,
+          command => $fact_cmd,
+          user    => $patch_cron_user,
+          special => 'reboot',
+          require => File[$fact_cmd],
+        }
       }
 
       if $facts['os']['family'] == 'Debian' {
