@@ -166,7 +166,7 @@ then
   touch $DATADIR/apps_to_restart
 fi
 
-puppet facts upload 2>/dev/null 1>/dev/null
+#puppet facts upload 2>/dev/null 1>/dev/null
 logger -p info -t os_patching_fact_generation.sh "patch data fact refreshed"
 
 rm $LOCKFILE
