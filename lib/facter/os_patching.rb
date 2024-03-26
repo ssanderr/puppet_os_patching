@@ -9,6 +9,13 @@ if Facter.value(:facterversion).split('.')[0].to_i < 2
   end
 else
   Facter.add('os_patching', :type => :aggregate) do
+    pkgs = `yum -q check-update 2>/dev/null | egrep -v "^[Ss]ecurity:" | grep -oP '^.*?(?= )' | sed 's/Obsoleting.*//'`.split("\n")
+    sec_pkgs = `yum -q --security check-update 2>/dev/null | egrep -v "^Security:" | grep -oP '^.*?(?= )' | sed 's/Obsoleting.*//'`.split("\n")
+    held_pkgs = `[ -r /etc/yum/pluginconf.d/versionlock.list ] && awk -F':' '/:/ {print $2}' /etc/yum/pluginconf.d/versionlock.list | sed 's/-[0-9].*//'`.split("\n")
+
+    vardir = `puppet config print vardir`.strip
+    catalog = vardir + "/client_data/catalog/" + `puppet config print certname --section agent`.strip + ".json"
+
     confine { ['FreeBSD', 'Linux', 'windows'].include?(Facter.value(:kernel)) }
     require 'time'
     now = Time.now.iso8601
@@ -35,25 +42,8 @@ else
 
     chunk(:updates) do
       data = {}
-      updatelist = []
-      updatefile = os_patching_dir + '/package_updates'
-      if File.file?(updatefile)
-        if (Time.now - File.mtime(updatefile)) / (24 * 3600) > 10
-          warnings['update_file_time'] = 'Update file has not been updated in 10 days'
-        end
-
-        updates = File.open(updatefile, 'r').read
-        updates.each_line do |line|
-          next unless line =~ /[A-Za-z0-9]+/
-          next if line =~ /^#|^$/
-          line.sub! 'Title : ', ''
-          updatelist.push line.chomp
-        end
-      else
-        warnings['update_file'] = 'Update file not found, update information invalid'
-      end
-      data['package_updates'] = updatelist
-      data['package_update_count'] = updatelist.count
+      data['package_updates'] = pkgs
+      data['package_update_count'] = pkgs.count
       data
     end
 
@@ -73,23 +63,8 @@ else
 
     chunk(:secupdates) do
       data = {}
-      secupdatelist = []
-      secupdatefile = os_patching_dir + '/security_package_updates'
-      if File.file?(secupdatefile)
-        if (Time.now - File.mtime(secupdatefile)) / (24 * 3600) > 10
-          warnings['sec_update_file_time'] = 'Security update file has not been updated in 10 days'
-        end
-        secupdates = File.open(secupdatefile, 'r').read
-        secupdates.each_line do |line|
-          next if line.empty?
-          next if line =~ /^#|^$/
-          secupdatelist.push line.chomp
-        end
-      else
-        warnings['security_update_file'] = 'Security update file not found, update information invalid'
-      end
-      data['security_package_updates'] = secupdatelist
-      data['security_package_update_count'] = secupdatelist.count
+      data['security_package_updates'] = sec_pkgs
+      data['security_package_update_count'] = sec_pkgs.count
       data
     end
 
@@ -131,24 +106,26 @@ else
 
     # Are there any pinned/version locked packages?
     chunk(:pinned) do
+      require 'json'
+
       data = {}
-      pinnedpkgs = []
-      mismatchpinnedpackagefile = os_patching_dir + '/mismatched_version_locked_packages'
-      pinnedpackagefile = os_patching_dir + '/os_version_locked_packages'
-      if File.file?(pinnedpackagefile)
-        pinnedfile = File.open(pinnedpackagefile, 'r').read.chomp
-        pinnedfile.each_line do |line|
-          pinnedpkgs.push line.chomp
+      pinned_list = []
+
+      File.open(catalog, 'r') do |file|
+        json_hash = JSON.load file
+        json_hash['resources'].select { |r| r['type'] == 'Package' and r['parameters']['ensure'] and r['parameters']['ensure'].match /\d.+/ }.each do | m |
+          pinned_list.push(m['title'])
         end
+        data['pinned_packages'] = pinned_list
       end
-      if File.file?(mismatchpinnedpackagefile) && !File.zero?(mismatchpinnedpackagefile)
-        warnings['version_specified_but_not_locked_packages'] = []
-        mismatchfile = File.open(mismatchpinnedpackagefile, 'r').read
-        mismatchfile.each_line do |line|
-          warnings['version_specified_but_not_locked_packages'].push line.chomp
-        end
-      end
-      data['pinned_packages'] = pinnedpkgs
+
+      #pinned_list.each do | pkg |
+      #  p "Checking pinned_list"
+      #  if held_pkgs.include?(pkg)
+      #    p "Adding warning"
+      #    warnings['version_specified_but_not_locked_packages'].push pkg
+      #    p "Warning added"
+      #end
       data
     end
 
@@ -220,39 +197,25 @@ else
 
     # Reboot or restarts required?
     chunk(:reboot_required) do
+      p "Getting reboot required"
       data = {}
       data['reboots'] = {}
-      reboot_required_file = os_patching_dir + '/reboot_required'
-      if File.file?(reboot_required_file)
-        if (Time.now - File.mtime(reboot_required_file)) / (24 * 3600) > 10
-          warnings['reboot_required_file_time'] = 'Reboot required file has not been updated in 10 days'
-        end
-        reboot_required_fh = File.open(reboot_required_file, 'r').to_a
-        data['reboots']['reboot_required'] = case reboot_required_fh.last
-                                             when /^[Tt]rue$/
-                                               true
-                                             when /^[Ff]alse$/
-                                               false
-                                             else
-                                               ''
-                                             end
+
+      reboot = `/usr/bin/needs-restarting -r 2>/dev/null 1>/dev/null`.split("\n")
+      unless reboot.empty?
+        data['reboots']['reboot_required'] = true
       else
-        data['reboots']['reboot_required'] = 'unknown'
+        data['reboots']['reboot_required'] = false
       end
-      app_restart_file = os_patching_dir + '/apps_to_restart'
-      if File.file?(app_restart_file)
-        app_restart_fh = File.open(app_restart_file, 'r').to_a
-        data['reboots']['apps_needing_restart'] = {}
-        app_restart_fh.each do |line|
-          line.chomp!
-          key_value = line.split(' : ')
-          data['reboots']['apps_needing_restart'][key_value[0]] = key_value[1]
-        end
-        data['reboots']['app_restart_required'] = if data['reboots']['apps_needing_restart'].empty?
-                                                    false
-                                                  else
-                                                    true
-                                                  end
+
+      p "Checking apps that need restart"
+      apps_restart = `/usr/bin/needs-restarting 2>/dev/null | grep -v 'Updating Subscription Management repositories' | sed 's/[[:space:]]*$//'`.split("\n")
+      data['reboots']['apps_needing_restart'] = apps_restart
+
+      unless data['reboots']['apps_needing_restart'].empty?
+        data['reboots']['app_restart_required'] = true
+      else
+        data['reboots']['app_restart_required'] = false
       end
       data
     end
