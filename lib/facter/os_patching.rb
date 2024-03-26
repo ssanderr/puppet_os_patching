@@ -113,7 +113,7 @@ else
 
       File.open(catalog, 'r') do |file|
         json_hash = JSON.load file
-        json_hash['resources'].select { |r| r['type'] == 'Package' and r['parameters']['ensure'] and r['parameters']['ensure'].match /\d.+/ }.each do | m |
+        json_hash['resources'].select { |r| r['type'] == 'Package' and r['parameters'] and r['parameters']['ensure'] and r['parameters']['ensure'].match /\d.+/ }.each do | m |
           pinned_list.push(m['title'])
         end
         data['pinned_packages'] = pinned_list
