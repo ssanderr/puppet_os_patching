@@ -29,7 +29,7 @@ else
   # set paths/commands for linux
   fact_generation_script = '/usr/local/bin/os_patching_fact_generation.sh'
   fact_generation_cmd = fact_generation_script
-  puppet_cmd = '/opt/puppetlabs/puppet/bin/puppet'
+  puppet_cmd = '/opt/puppetlabs/bin/puppet'
   shutdown_cmd = 'nohup /sbin/shutdown -r +1 2>/dev/null 1>/dev/null &'
 
   ENV['LC_ALL'] = 'C'
