@@ -197,7 +197,6 @@ else
 
     # Reboot or restarts required?
     chunk(:reboot_required) do
-      p "Getting reboot required"
       data = {}
       data['reboots'] = {}
 
@@ -208,7 +207,6 @@ else
         data['reboots']['reboot_required'] = false
       end
 
-      p "Checking apps that need restart"
       apps_restart = `/usr/bin/needs-restarting 2>/dev/null | grep -v 'Updating Subscription Management repositories' | sed 's/[[:space:]]*$//'`.split("\n")
       data['reboots']['apps_needing_restart'] = apps_restart
 
