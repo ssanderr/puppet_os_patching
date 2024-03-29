@@ -273,7 +273,7 @@ class os_patching (
 
   file { "${cache_dir}/disable_shell_script":
     ensure  => $disable_shell_ensure,
-    content => $disable_shell_script,
+    content => 'true',
   }
 
   $reboot_override_ensure = ($ensure == 'present' and $reboot_override) ? {
