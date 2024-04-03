@@ -187,13 +187,11 @@ else
         end
         data['pinned_packages'] = pinned_list
 
-        #pinned_list.each do | pkg |
-        #  p "Checking pinned_list"
-        #  if held_pkgs.include?(pkg)
-        #    p "Adding warning"
-        #    warnings['version_specified_but_not_locked_packages'].push pkg
-        #    p "Warning added"
-        #end
+        pinned_list.each do | pkg |
+          if held_pkgs.include?(pkg)
+            warnings['version_specified_but_not_locked_packages'].push pkg
+          end
+        end
         data
       end
     end
