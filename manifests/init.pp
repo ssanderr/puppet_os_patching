@@ -228,7 +228,7 @@ class os_patching (
     ensure => $ensure_file,
     mode   => $fact_mode,
     source => "puppet:///modules/${module_name}/${fact_file}",
-    notify => Exec[$fact_exec],
+    #notify => Exec[$fact_exec],
   }
 
   $autoremove_ensure = $apt_autoremove ? {
@@ -263,7 +263,7 @@ class os_patching (
 
   file { "${cache_dir}/block_patching_on_warnings":
     ensure => $block_patching_ensure,
-    notify => Exec[$fact_exec],
+    #notify => Exec[$fact_exec],
   }
 
   $reboot_override_ensure = ($ensure == 'present' and $reboot_override) ? {
