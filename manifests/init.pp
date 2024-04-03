@@ -361,7 +361,7 @@ class os_patching (
         }
       }
 
-      if $fact_exec {
+      if $fact_exec and $use_shell_script {
         exec { $fact_exec:
           command     => $fact_cmd,
           user        => $patch_data_owner,
