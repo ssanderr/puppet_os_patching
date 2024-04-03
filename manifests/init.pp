@@ -31,8 +31,8 @@
 # @param fact_cron [Boolean]
 #   Feature flag to toggle cron jobs to refresh facts
 #
-# @param disable_shell_script [Boolean]
-#   If disabled, will run all shell commands in Facter
+# @param use_shell_script [Boolean]
+#   If false, will run all shell commands in Facter
 #
 # @param apt_autoremove [Boolean]
 #   Should `apt-get autoremove` be run during reboot?
@@ -156,7 +156,7 @@ class os_patching (
   Boolean $manage_yum_plugin_security,
   Boolean $fact_upload,
   Boolean $fact_cron,
-  Boolean $disable_shell_script,
+  Boolean $use_shell_script,
   Boolean $block_patching_on_warnings,
   Boolean $apt_autoremove,
   Integer[0,23] $windows_update_hour,
@@ -205,8 +205,8 @@ class os_patching (
     default   => undef
   }
 
-  $ensure_file = $ensure ? {
-    'present' => 'file',
+  $ensure_file = ($ensure == 'present' and $use_shell_script ) ? {
+    true      => 'file',
     default   => 'absent',
   }
 
@@ -251,11 +251,6 @@ class os_patching (
     default => 'absent'
   }
 
-  $disable_shell_ensure = ($ensure == 'present' and $disable_shell_script) ? {
-    true    => 'file',
-    default => 'absent'
-  }
-
   file { "${cache_dir}/patch_window":
     ensure  => $patch_window_ensure,
     content => $patch_window,
@@ -269,11 +264,6 @@ class os_patching (
   file { "${cache_dir}/block_patching_on_warnings":
     ensure => $block_patching_ensure,
     notify => Exec[$fact_exec],
-  }
-
-  file { "${cache_dir}/disable_shell_script":
-    ensure  => $disable_shell_ensure,
-    content => 'true',
   }
 
   $reboot_override_ensure = ($ensure == 'present' and $reboot_override) ? {

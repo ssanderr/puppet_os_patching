@@ -20,13 +20,13 @@ else
     case Facter.value(:kernel)
     when 'FreeBSD', 'Linux'
       os_patching_dir = '/var/cache/os_patching'
+      os_patching_shell_script = '/usr/local/bin/os_patching_fact_generation.sh'
     when 'windows'
       os_patching_dir = 'C:\ProgramData\os_patching'
     end
 
-    disable_shell_script_file = os_patching_dir + '/disable_shell_script'
-    disable_shell_script = File.file?(disable_shell_script_file)
-    if disable_shell_script
+    use_shell_script = File.file?(os_patching_shell_script)
+    unless use_shell_script
       pkgs = `yum -q check-update 2>/dev/null | egrep -v "^[Ss]ecurity:" | grep -oP '^.*?(?= )' | sed 's/Obsoleting.*//'`.split("\n")
       sec_pkgs = `yum -q --security check-update 2>/dev/null | egrep -v "^Security:" | grep -oP '^.*?(?= )' | sed 's/Obsoleting.*//'`.split("\n")
       held_pkgs = `[ -r /etc/yum/pluginconf.d/versionlock.list ] && awk -F':' '/:/ {print $2}' /etc/yum/pluginconf.d/versionlock.list | sed 's/-[0-9].*//'`.split("\n")
@@ -47,7 +47,7 @@ else
 
     chunk(:updates) do
       data = {}
-      unless disable_shell_script
+      if use_shell_script
         updatelist = []
         updatefile = os_patching_dir + '/package_updates'
         if File.file?(updatefile)
@@ -91,7 +91,7 @@ else
 
     chunk(:secupdates) do
       data = {}
-      unless disable_shell_script
+      if use_shell_script
         secupdatelist = []
         secupdatefile = os_patching_dir + '/security_package_updates'
         if File.file?(secupdatefile)
@@ -156,7 +156,7 @@ else
     # Are there any pinned/version locked packages?
     chunk(:pinned) do
       data = {}
-      unless disable_shell_script
+      if use_shell_script
         pinnedpkgs = []
         mismatchpinnedpackagefile = os_patching_dir + '/mismatched_version_locked_packages'
         pinnedpackagefile = os_patching_dir + '/os_version_locked_packages'
@@ -269,7 +269,7 @@ else
       data = {}
       data['reboots'] = {}
 
-      unless disable_shell_script
+      if use_shell_script
         reboot_required_file = os_patching_dir + '/reboot_required'
         if File.file?(reboot_required_file)
           if (Time.now - File.mtime(reboot_required_file)) / (24 * 3600) > 10
