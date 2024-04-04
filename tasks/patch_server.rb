@@ -27,6 +27,8 @@ else
   require 'syslog/logger'
   log = Syslog::Logger.new 'os_patching'
   # set paths/commands for linux
+  fact_generation_script = '/usr/local/bin/os_patching_fact_generation.sh'
+  fact_generation_cmd = fact_generation_script
   puppet_cmd = '/opt/puppetlabs/bin/puppet'
   shutdown_cmd = 'nohup /sbin/shutdown -r +1 2>/dev/null 1>/dev/null &'
 
@@ -245,6 +247,16 @@ end
 
 log.info 'os_patching run started'
 
+# ensure node has been tagged with os_patching class by checking for fact generation script
+log.debug 'Running os_patching fact refresh'
+unless File.exist? fact_generation_script
+  err(
+    255,
+    "os_patching/#{fact_generation_script}",
+    "#{fact_generation_script} does not exist, declare os_patching and run Puppet first",
+    starttime,
+  )
+end
 
 # Cache the facts
 log.debug 'Gathering facts'
@@ -284,6 +296,13 @@ if params['clean_cache'] && params['clean_cache'] == true
   log.info 'Cache cleaned'
 end
 
+# Refresh the patching fact cache on non-windows systems
+# Windows scans can take a long time, and we do one at the start of the os_patching_windows script anyway.
+# No need to do yet another scan prior to this, it just wastes valuable time.
+if os['family'] != 'windows'
+  _fact_out, stderr, status = Open3.capture3(fact_generation_cmd)
+  err(status, 'os_patching/fact_refresh', stderr, starttime) if status != 0
+end
 
 # Let's figure out the reboot gordian knot
 #
@@ -625,6 +644,15 @@ else
   err(200, 'os_patching/unsupported_os', 'Unsupported OS', starttime)
 end
 
+# Refresh the facts now that we've patched - for non-windows systems
+# Windows scans can take an eternity after a patch run prior to being reboot (30+ minutes in a lab on 2008 versions..)
+# Best not to delay the whole patching process here.
+# Note that the fact refresh (which includes a scan) runs on system startup anyway - see os_patching puppet class
+if os['family'] != 'windows'
+  log.info 'Running os_patching fact refresh'
+  _fact_out, stderr, status = Open3.capture3(fact_generation_cmd)
+  err(status, 'os_patching/fact', stderr, starttime) if status != 0
+end
 
 # Reboot if the task has been told to and there is a requirement OR if reboot_override is set to true
 needs_reboot = reboot_required(os['family'], os['release']['major'], reboot)
