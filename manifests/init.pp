@@ -32,7 +32,10 @@
 #   Feature flag to toggle cron jobs to refresh facts
 #
 # @param use_shell_script [Boolean]
-#   If false, will run all shell commands in Facter
+#   Determines whether a shell script will be used to generate facts for Facter to read from
+#   This primarily affects facts generated with package management tools
+#   If `true` a shell script will be used to generate facts
+#   If `false` facts will be generated on the fly within Facter
 #
 # @param apt_autoremove [Boolean]
 #   Should `apt-get autoremove` be run during reboot?
