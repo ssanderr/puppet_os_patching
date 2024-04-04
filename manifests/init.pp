@@ -31,7 +31,7 @@
 # @param fact_cron [Boolean]
 #   Feature flag to toggle cron jobs to refresh facts
 #
-# @param use_shell_script [Boolean]
+# @param enable_facts_script [Boolean]
 #   Determines whether a shell script will be used to generate facts for Facter to read from
 #   This primarily affects facts generated with package management tools
 #   If `true` a shell script will be used to generate facts
@@ -159,7 +159,7 @@ class os_patching (
   Boolean $manage_yum_plugin_security,
   Boolean $fact_upload,
   Boolean $fact_cron,
-  Boolean $use_shell_script,
+  Boolean $enable_facts_script,
   Boolean $block_patching_on_warnings,
   Boolean $apt_autoremove,
   Integer[0,23] $windows_update_hour,
@@ -208,7 +208,7 @@ class os_patching (
     default   => undef
   }
 
-  $ensure_file = ($ensure == 'present' and $use_shell_script ) ? {
+  $ensure_file = ($ensure == 'present' and $enable_facts_script ) ? {
     true      => 'file',
     default   => 'absent',
   }
@@ -233,7 +233,7 @@ class os_patching (
     source => "puppet:///modules/${module_name}/${fact_file}",
   }
 
-  if $use_shell_script {
+  if $enable_facts_script {
     File[$fact_cmd]->Exec[$fact_exec]
   }
 
@@ -271,7 +271,7 @@ class os_patching (
     ensure => $block_patching_ensure,
   }
 
-  if $use_shell_script {
+  if $enable_facts_script {
     File["${cache_dir}/block_patching_on_warnings"]->Exec[$fact_exec]
   }
 
@@ -370,7 +370,7 @@ class os_patching (
         }
       }
 
-      if $fact_exec and $use_shell_script {
+      if $fact_exec and $enable_facts_script {
         exec { $fact_exec:
           command     => $fact_cmd,
           user        => $patch_data_owner,
